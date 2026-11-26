@@ -1,23 +1,23 @@
 let () =
-  match Sys.getenv_opt "OONNXX_TEST_MODEL", Sys.getenv_opt "OONNXX_TEST_TOKENIZER" with
+  match Sys.getenv_opt "SEMANTIC_SQLITE_TEST_MODEL", Sys.getenv_opt "SEMANTIC_SQLITE_TEST_TOKENIZER" with
   | Some model, Some tokenizer ->
-      let engine = Oonnxx.open_model ~model ~tokenizer in
+      let engine = Semantic_sqlite.open_model ~model ~tokenizer in
       let texts = [ "un chat noir"; "database schema"; "a black cat" ] in
-      let serial = List.map (Oonnxx.embed_passage engine) texts in
+      let serial = List.map (Semantic_sqlite.embed_passage engine) texts in
       let parallel =
         Eio_main.run (fun env ->
-          Oonnxx_eio.embed_passages
+          Semantic_sqlite_eio.embed_passages
             ~domain_mgr:(Eio.Stdenv.domain_mgr env) ~max_fibers:2 engine texts) in
       List.iter2 (fun a b ->
-        if Oonnxx.cosine a b < 0.99999 then failwith "parallel embedding differs")
+        if Semantic_sqlite.cosine a b < 0.99999 then failwith "parallel embedding differs")
         serial parallel;
-      let single = Oonnxx.open_model_with ~threads:1 ~model ~tokenizer () in
+      let single = Semantic_sqlite.open_model_with ~threads:1 ~model ~tokenizer () in
       let parallel_single =
         Eio_main.run (fun env ->
-          Oonnxx_eio.embed_passages
+          Semantic_sqlite_eio.embed_passages
             ~domain_mgr:(Eio.Stdenv.domain_mgr env) ~max_fibers:2 single texts) in
       List.iter2 (fun a b ->
-        if Oonnxx.cosine a b < 0.99999 then
+        if Semantic_sqlite.cosine a b < 0.99999 then
           failwith "parallel embedding with threads:1 differs")
         serial parallel_single
   | _ -> ()

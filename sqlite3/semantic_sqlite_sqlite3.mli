@@ -3,7 +3,7 @@
 type t
 
 val attach : model_id:string -> Sqlite3.db -> (t, string) result
-(** Create the independent Oonnxx tables, load the bundled Vec1 extension,
+(** Create the independent Semantic_sqlite tables, load the bundled Vec1 extension,
     and import vectors from an existing 0.1 index. The caller owns the
     connection. [model_id] must identify the exact embedding model and
     tokenizer. *)

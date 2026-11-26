@@ -59,32 +59,35 @@ let transaction db f =
     raise error
 
 let extension_path () =
-  match Sys.getenv_opt "OONNXX_VEC1_EXTENSION" with
+  match Sys.getenv_opt "SEMANTIC_SQLITE_VEC1_EXTENSION" with
   | Some path when path <> "" -> path
-  | _ -> Filename.concat (Findlib.package_directory "oonnxx") "vec1.so"
+  | _ ->
+      (match Sys.getenv_opt "OONNXX_VEC1_EXTENSION" with
+       | Some path when path <> "" -> path
+       | _ -> Filename.concat (Findlib.package_directory "semantic-sqlite") "vec1.so")
 
 let load_vec1 db =
   if Sqlite3.sqlite_version () < 3038000 then
-    Error "Oonnxx_sqlite3: SQLite 3.38.0 or newer is required for Vec1"
+    Error "Semantic_sqlite_sqlite3: SQLite 3.38.0 or newer is required for Vec1"
   else
     match (try first db "SELECT vec1_info()" []
                  (fun stmt -> Sqlite3.column_text stmt 0)
            with Sqlite3.Error _ -> Error "Vec1 is not loaded") with
     | Ok (Some info) when String.starts_with ~prefix:"version 0.8" info -> Ok ()
-    | Ok (Some info) -> Error ("Oonnxx_sqlite3: incompatible Vec1 extension: " ^ info)
+    | Ok (Some info) -> Error ("Semantic_sqlite_sqlite3: incompatible Vec1 extension: " ^ info)
     | _ ->
         let path = extension_path () in
         if not (Sys.file_exists path) then
-          Error ("Oonnxx_sqlite3: Vec1 extension not found: " ^ path)
+          Error ("Semantic_sqlite_sqlite3: Vec1 extension not found: " ^ path)
         else if not (Sqlite3.enable_load_extension db true) then
-          Error "Oonnxx_sqlite3: cannot enable SQLite extension loading"
+          Error "Semantic_sqlite_sqlite3: cannot enable SQLite extension loading"
         else
           Fun.protect ~finally:(fun () -> ignore (Sqlite3.enable_load_extension db false))
             (fun () ->
               let quoted = String.concat "''" (String.split_on_char '\'' path) in
               match Sqlite3.exec db ("SELECT load_extension('" ^ quoted ^ "')") with
               | Sqlite3.Rc.OK -> Ok ()
-              | rc -> Error ("Oonnxx_sqlite3: cannot load Vec1: " ^ sql_error db rc))
+              | rc -> Error ("Semantic_sqlite_sqlite3: cannot load Vec1: " ^ sql_error db rc))
 
 let schema =
   [ "CREATE TABLE IF NOT EXISTS oonnxx_metadata (name TEXT PRIMARY KEY, value TEXT NOT NULL)";
@@ -111,12 +114,12 @@ let check_model_id db model_id =
   let* existing = metadata db "model_id" in
   match existing with
   | Some id when id = model_id -> Ok ()
-  | Some _ -> Error "Oonnxx_sqlite3: model_id differs; rebuild the vector index"
-  | None -> Error "Oonnxx_sqlite3: index has no model_id"
+  | Some _ -> Error "Semantic_sqlite_sqlite3: model_id differs; rebuild the vector index"
+  | None -> Error "Semantic_sqlite_sqlite3: index has no model_id"
 
 let attach ~model_id db =
   guard (fun () ->
-    if model_id = "" then invalid_arg "Oonnxx_sqlite3: empty model_id";
+    if model_id = "" then invalid_arg "Semantic_sqlite_sqlite3: empty model_id";
     let* () = load_vec1 db in
     let* () = transaction db (fun () ->
       let* () = List.fold_left (fun state sql -> let* () = state in run db sql []) (Ok ()) schema in
@@ -132,19 +135,19 @@ let attach ~model_id db =
 
 let open_readonly ~model_id db =
   guard (fun () ->
-    if model_id = "" then invalid_arg "Oonnxx_sqlite3: empty model_id";
+    if model_id = "" then invalid_arg "Semantic_sqlite_sqlite3: empty model_id";
     let* () = load_vec1 db in
     let* () = check_model_id db model_id in
     Ok { db; readonly = true })
 
 let validate_vector vector =
-  if Array.length vector = 0 then invalid_arg "Oonnxx_sqlite3: empty vector";
+  if Array.length vector = 0 then invalid_arg "Semantic_sqlite_sqlite3: empty vector";
   Array.iter (fun value ->
-    if not (Float.is_finite value) then invalid_arg "Oonnxx_sqlite3: nonfinite vector") vector;
-  ignore (Oonnxx.cosine vector vector)
+    if not (Float.is_finite value) then invalid_arg "Semantic_sqlite_sqlite3: nonfinite vector") vector;
+  ignore (Semantic_sqlite.cosine vector vector)
 
 let require_writable t =
-  if t.readonly then Error "Oonnxx_sqlite3: index is read-only" else Ok ()
+  if t.readonly then Error "Semantic_sqlite_sqlite3: index is read-only" else Ok ()
 
 let upsert_many t rows =
   guard (fun () ->
@@ -154,10 +157,10 @@ let upsert_many t rows =
     | (_, _, first_vector) :: _ ->
         let dimension = Array.length first_vector in
         List.iter (fun (id, _, vector) ->
-          if id = "" then invalid_arg "Oonnxx_sqlite3: empty id";
+          if id = "" then invalid_arg "Semantic_sqlite_sqlite3: empty id";
           validate_vector vector;
           if Array.length vector <> dimension then
-            invalid_arg "Oonnxx_sqlite3: mixed dimensions in batch") rows;
+            invalid_arg "Semantic_sqlite_sqlite3: mixed dimensions in batch") rows;
         transaction t.db (fun () ->
           let dim_text = string_of_int dimension in
           let* existing = metadata t.db "dimension" in
@@ -165,13 +168,13 @@ let upsert_many t rows =
             match existing with
             | None -> set_metadata t.db "dimension" dim_text
             | Some value when value = dim_text -> Ok ()
-            | Some _ -> Error "Oonnxx_sqlite3: vector dimension differs from index" in
+            | Some _ -> Error "Semantic_sqlite_sqlite3: vector dimension differs from index" in
           List.fold_left (fun state (id, text, vector) ->
             let* () = state in
             run t.db
               "INSERT INTO oonnxx_documents(id,text,embedding,dimension) VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET text=excluded.text, embedding=excluded.embedding, dimension=excluded.dimension"
               [ Sqlite3.Data.TEXT id; Sqlite3.Data.TEXT text;
-                Sqlite3.Data.BLOB (Oonnxx.encode_f32le vector);
+                Sqlite3.Data.BLOB (Semantic_sqlite.encode_f32le vector);
                 Sqlite3.Data.INT (Int64.of_int dimension) ])
             (Ok ()) rows))
 
@@ -190,7 +193,7 @@ let is_query_separator = function
 
 let search_fts t ~query ~limit =
   guard (fun () ->
-    if limit <= 0 then invalid_arg "Oonnxx_sqlite3: limit must be positive";
+    if limit <= 0 then invalid_arg "Semantic_sqlite_sqlite3: limit must be positive";
     if String.for_all is_query_separator query then Ok [] else
     let* reversed =
       fold t.db
@@ -204,7 +207,7 @@ let check_query_dimension t query =
   match dimension with
   | None -> Ok ()
   | Some value when value = string_of_int (Array.length query) -> Ok ()
-  | Some _ -> Error "Oonnxx_sqlite3: query dimension differs from index"
+  | Some _ -> Error "Semantic_sqlite_sqlite3: query dimension differs from index"
 
 (* Result order: descending score, then ascending id. Ids are unique, so the
    order is total and the selected set does not depend on scan order. *)
@@ -273,7 +276,7 @@ let squared_norm vector =
   done;
   !sum
 
-(* [Oonnxx.cosine query (Oonnxx.decode_f32le blob)], bit for bit and with the
+(* [Semantic_sqlite.cosine query (Semantic_sqlite.decode_f32le blob)], bit for bit and with the
    same errors, without decoding the blob into an array. The sums follow the
    same order; [query_norm] is the query's squared norm, computed once. A
    float32 square cannot overflow a double sum, so a non-finite row sum means
@@ -285,13 +288,13 @@ let cosine_f32le ~query ~query_norm blob =
     dot := !dot +. (query.(i) *. x);
     norm := !norm +. (x *. x)
   done;
-  if not (Float.is_finite !norm) then invalid_arg "Oonnxx.cosine: nonfinite vector";
-  if query_norm <= 0. || !norm <= 0. then invalid_arg "Oonnxx.cosine: zero vector";
+  if not (Float.is_finite !norm) then invalid_arg "Semantic_sqlite.cosine: nonfinite vector";
+  if query_norm <= 0. || !norm <= 0. then invalid_arg "Semantic_sqlite.cosine: zero vector";
   !dot /. sqrt (query_norm *. !norm)
 
 let search_vector_exact t ~query ~limit =
   guard (fun () ->
-    if limit <= 0 then invalid_arg "Oonnxx_sqlite3: limit must be positive";
+    if limit <= 0 then invalid_arg "Semantic_sqlite_sqlite3: limit must be positive";
     validate_vector query;
     let* () = check_query_dimension t query in
     let query_norm = squared_norm query in
@@ -302,10 +305,10 @@ let search_vector_exact t ~query ~limit =
           let id = Sqlite3.column_text stmt 0 in
           let blob = Sqlite3.column_blob stmt 1 in
           if String.length blob mod 4 <> 0 then
-            invalid_arg "Oonnxx.decode_f32le: invalid blob length";
+            invalid_arg "Semantic_sqlite.decode_f32le: invalid blob length";
           let length = String.length blob / 4 in
           if length <> Sqlite3.column_int stmt 2 || length <> Array.length query then
-            failwith ("Oonnxx_sqlite3: inconsistent vector dimension for " ^ id);
+            failwith ("Semantic_sqlite_sqlite3: inconsistent vector dimension for " ^ id);
           Top_k.add best (id, cosine_f32le ~query ~query_norm blob)) in
     Ok (Top_k.to_sorted_list best))
 
@@ -315,18 +318,18 @@ let search_vector ?(exact = false) ?(nprobe = 0.05) t ~query ~limit =
     guard (fun () ->
       let* mode = metadata t.db "ann_mode" in
       if mode = None then search_vector_exact t ~query ~limit
-      else if mode <> Some "ivf" then Error "Oonnxx_sqlite3: unknown ANN mode"
+      else if mode <> Some "ivf" then Error "Semantic_sqlite_sqlite3: unknown ANN mode"
       else (
-      if limit <= 0 then invalid_arg "Oonnxx_sqlite3: limit must be positive";
+      if limit <= 0 then invalid_arg "Semantic_sqlite_sqlite3: limit must be positive";
       if not (Float.is_finite nprobe) || nprobe <= 0. then
-        invalid_arg "Oonnxx_sqlite3: nprobe must be positive and finite";
+        invalid_arg "Semantic_sqlite_sqlite3: nprobe must be positive and finite";
       validate_vector query;
       let* () = check_query_dimension t query in
       let options = Printf.sprintf "{\"K\":%d,\"nprobe\":%.17g}" limit nprobe in
       let* reversed =
         fold t.db
           "SELECT d.id, 1.0-v.distance FROM oonnxx_vec1(?,?) v JOIN oonnxx_documents d ON d.rowid=v.rowid ORDER BY v.distance, d.id LIMIT ?"
-          [ Sqlite3.Data.BLOB (Oonnxx.encode_f32le query);
+          [ Sqlite3.Data.BLOB (Semantic_sqlite.encode_f32le query);
             Sqlite3.Data.TEXT options; Sqlite3.Data.INT (Int64.of_int limit) ]
           [] (fun acc stmt ->
             (Sqlite3.column_text stmt 0, Sqlite3.column_double stmt 1) :: acc) in
@@ -336,10 +339,10 @@ let rebuild_ann ?(threads = 1) t ~nbucket ~training_limit =
   guard (fun () ->
     let* () = require_writable t in
     if nbucket < 2 || nbucket > 65536 then
-      invalid_arg "Oonnxx_sqlite3: nbucket must be between 2 and 65536";
+      invalid_arg "Semantic_sqlite_sqlite3: nbucket must be between 2 and 65536";
     if training_limit < nbucket * 4 then
-      invalid_arg "Oonnxx_sqlite3: training_limit must be at least 4 * nbucket";
-    if threads < 1 then invalid_arg "Oonnxx_sqlite3: threads must be positive";
+      invalid_arg "Semantic_sqlite_sqlite3: training_limit must be at least 4 * nbucket";
+    if threads < 1 then invalid_arg "Semantic_sqlite_sqlite3: threads must be positive";
     let* _ = first t.db "SELECT vec1_config('nthread', ?)"
         [ Sqlite3.Data.INT (Int64.of_int threads) ]
         (fun stmt -> Sqlite3.column_text stmt 0) in
@@ -352,7 +355,7 @@ let rebuild_ann ?(threads = 1) t ~nbucket ~training_limit =
         [ Sqlite3.Data.INT (Int64.of_int training_limit); Sqlite3.Data.TEXT options ]
         (fun stmt -> Sqlite3.column_blob stmt 0) in
     match model with
-    | None -> Error "Oonnxx_sqlite3: no vectors available to train ANN index"
+    | None -> Error "Semantic_sqlite_sqlite3: no vectors available to train ANN index"
     | Some model ->
         transaction t.db (fun () ->
           let* () = run t.db "INSERT INTO oonnxx_vec1(cmd,arg) VALUES ('rebuild',?)"
@@ -375,7 +378,7 @@ let literal_fts_query text =
   |> String.concat " OR "
 
 let search_hybrid t ~text ~vector ~limit =
-  if limit <= 0 then Error "Oonnxx_sqlite3: limit must be positive"
+  if limit <= 0 then Error "Semantic_sqlite_sqlite3: limit must be positive"
   else
     let candidates = if limit > 3333 then 10000 else limit * 3 in
     let fts_query = literal_fts_query text in
@@ -384,5 +387,5 @@ let search_hybrid t ~text ~vector ~limit =
       else search_fts t ~query:fts_query ~limit:candidates in
     let* semantic = search_vector t ~query:vector ~limit:candidates in
     let ids = List.map fst semantic in
-    Ok (Oonnxx.reciprocal_rank_fusion [ fts; ids ]
+    Ok (Semantic_sqlite.reciprocal_rank_fusion [ fts; ids ]
         |> List.filteri (fun index _ -> index < limit))

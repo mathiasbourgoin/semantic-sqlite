@@ -1,7 +1,7 @@
 (library
- (name oonnxx_sqlite3)
- (public_name oonnxx.sqlite3)
- (libraries oonnxx sqlite3 findlib))
+ (name semantic_sqlite_sqlite3)
+ (public_name semantic-sqlite.sqlite3)
+ (libraries semantic-sqlite sqlite3 findlib))
 
 (rule
  (target vec1.so)

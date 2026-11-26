@@ -23,20 +23,20 @@ let median values =
 
 let () =
   let db_path =
-    match Sys.getenv_opt "OONNXX_BENCH_DB" with
+    match Sys.getenv_opt "SEMANTIC_SQLITE_BENCH_DB" with
     | Some path -> path
-    | None -> failwith "set OONNXX_BENCH_DB to a scratch SQLite database path" in
-  let count = env_int "OONNXX_BENCH_N" 1_000_000 in
-  let dimension = env_int "OONNXX_BENCH_DIM" 384 in
-  let query_count = env_int "OONNXX_BENCH_QUERIES" 10 in
-  let nbucket = env_int "OONNXX_BENCH_BUCKETS" 256 in
-  let training_limit = env_int "OONNXX_BENCH_TRAIN" 16_384 in
-  let threads = env_int "OONNXX_BENCH_THREADS" 16 in
-  let nprobe = env_float "OONNXX_BENCH_NPROBE" 0.05 in
-  let reuse = Sys.getenv_opt "OONNXX_BENCH_REUSE" = Some "1" in
-  let corpus = Option.value (Sys.getenv_opt "OONNXX_BENCH_CORPUS") ~default:"clustered" in
+    | None -> failwith "set SEMANTIC_SQLITE_BENCH_DB to a scratch SQLite database path" in
+  let count = env_int "SEMANTIC_SQLITE_BENCH_N" 1_000_000 in
+  let dimension = env_int "SEMANTIC_SQLITE_BENCH_DIM" 384 in
+  let query_count = env_int "SEMANTIC_SQLITE_BENCH_QUERIES" 10 in
+  let nbucket = env_int "SEMANTIC_SQLITE_BENCH_BUCKETS" 256 in
+  let training_limit = env_int "SEMANTIC_SQLITE_BENCH_TRAIN" 16_384 in
+  let threads = env_int "SEMANTIC_SQLITE_BENCH_THREADS" 16 in
+  let nprobe = env_float "SEMANTIC_SQLITE_BENCH_NPROBE" 0.05 in
+  let reuse = Sys.getenv_opt "SEMANTIC_SQLITE_BENCH_REUSE" = Some "1" in
+  let corpus = Option.value (Sys.getenv_opt "SEMANTIC_SQLITE_BENCH_CORPUS") ~default:"clustered" in
   if corpus <> "clustered" && corpus <> "uniform" then
-    invalid_arg "OONNXX_BENCH_CORPUS must be clustered or uniform";
+    invalid_arg "SEMANTIC_SQLITE_BENCH_CORPUS must be clustered or uniform";
   if count < query_count || dimension < 2 || query_count < 1 then
     invalid_arg "invalid benchmark size";
   let db = Sqlite3.db_open db_path in
@@ -48,8 +48,8 @@ let () =
       [ "PRAGMA journal_mode=OFF"; "PRAGMA synchronous=OFF";
         "PRAGMA temp_store=MEMORY"; "PRAGMA cache_size=-524288" ];
     let index =
-      if reuse then Oonnxx_sqlite3.open_readonly ~model_id:"synthetic-clusters-v1" db |> ok
-      else Oonnxx_sqlite3.attach ~model_id:"synthetic-clusters-v1" db |> ok in
+      if reuse then Semantic_sqlite_sqlite3.open_readonly ~model_id:"synthetic-clusters-v1" db |> ok
+      else Semantic_sqlite_sqlite3.attach ~model_id:"synthetic-clusters-v1" db |> ok in
     let random = Random.State.make [| 0x0a11; 0x2026 |] in
     let cluster_count = min 256 (max 2 (count / 100)) in
     let centroids = Array.init cluster_count (fun _ ->
@@ -71,14 +71,14 @@ let () =
       if not reuse then (
         batch := (string_of_int i, "synthetic passage " ^ string_of_int i, vector) :: !batch;
         if i mod 500 = 0 || i = count then (
-          Oonnxx_sqlite3.upsert_many index (List.rev !batch) |> ok;
+          Semantic_sqlite_sqlite3.upsert_many index (List.rev !batch) |> ok;
           batch := []));
       if not reuse && i mod 50_000 = 0 then (
         Printf.eprintf "indexed %d/%d in %.1fs\n%!" i count (now () -. t0))
     done;
     let ingestion_seconds = if reuse then 0. else now () -. t0 in
     let t_train = now () in
-    if not reuse then Oonnxx_sqlite3.rebuild_ann ~threads index ~nbucket ~training_limit |> ok;
+    if not reuse then Semantic_sqlite_sqlite3.rebuild_ann ~threads index ~nbucket ~training_limit |> ok;
     let training_seconds = if reuse then 0. else now () -. t_train in
     let queries = List.rev !selected |> List.map (fun vector ->
       Array.map (fun x -> x +. (Random.State.float random 2. -. 1.) *. 0.02) vector
@@ -87,8 +87,8 @@ let () =
     List.iteri (fun number query ->
       let measure f = let start = now () in let result = f () in result, now () -. start in
       let exact_search () =
-        Oonnxx_sqlite3.search_vector ~exact:true index ~query ~limit:10 |> ok in
-      let ann_search () = Oonnxx_sqlite3.search_vector ~nprobe index ~query ~limit:10 |> ok in
+        Semantic_sqlite_sqlite3.search_vector ~exact:true index ~query ~limit:10 |> ok in
+      let ann_search () = Semantic_sqlite_sqlite3.search_vector ~nprobe index ~query ~limit:10 |> ok in
       let exact, exact_time, ann, ann_time =
         if number mod 2 = 0 then
           let ann, ann_time = measure ann_search in

@@ -8,4 +8,4 @@ the copied `vec1.c` SHA-256 is
 `4f9a83efd78992769ba7a8e630d755b93370258387694498f22d1eb3cfd3e766`.
 
 The source begins with SQLite's public-domain dedication. It is compiled into
-`vec1.so` during the Oonnxx build. No local changes were made to `vec1.c`.
+`vec1.so` during the Semantic SQLite build. No local changes were made to `vec1.c`.

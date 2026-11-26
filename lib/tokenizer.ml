@@ -8,22 +8,22 @@ let load filename =
   let json = Yojson.Basic.from_file filename in
   let model = member "model" json in
   if to_string (member "type" model) <> "Unigram" then
-    failwith "Oonnxx: expected a Unigram tokenizer";
+    failwith "Semantic_sqlite: expected a Unigram tokenizer";
   let pretokenizer = member "pre_tokenizer" json in
   if to_string (member "type" pretokenizer) <> "Metaspace"
      || to_string (member "replacement" pretokenizer) <> "▁"
      || to_bool (member "add_prefix_space" pretokenizer) <> true then
-    failwith "Oonnxx: unsupported tokenizer pre-processing";
+    failwith "Semantic_sqlite: unsupported tokenizer pre-processing";
   if to_int (member "unk_id" model) <> 3 then
-    failwith "Oonnxx: unexpected E5 unknown token ID";
+    failwith "Semantic_sqlite: unexpected E5 unknown token ID";
   let entries = to_list (member "vocab" model) in
   let piece = function
     | `List [ `String text; _ ] -> text
-    | _ -> failwith "Oonnxx: invalid tokenizer vocabulary" in
+    | _ -> failwith "Semantic_sqlite: invalid tokenizer vocabulary" in
   (match entries with
    | a :: b :: c :: d :: _
      when List.map piece [ a; b; c; d ] = [ "<s>"; "<pad>"; "</s>"; "<unk>" ] -> ()
-   | _ -> failwith "Oonnxx: unexpected E5 special tokens");
+   | _ -> failwith "Semantic_sqlite: unexpected E5 special tokens");
   let vocab = Hashtbl.create 300_001 in
   let max_piece_bytes = ref 0 in
   entries
@@ -36,8 +36,8 @@ let load filename =
            Hashtbl.replace vocab piece (id, float_of_int score);
            max_piece_bytes := max !max_piece_bytes (String.length piece)
        | [ `String _; _ ] -> ()
-       | _ -> failwith "Oonnxx: invalid tokenizer vocabulary");
-  if Hashtbl.length vocab < 1000 then failwith "Oonnxx: tokenizer vocabulary too small";
+       | _ -> failwith "Semantic_sqlite: invalid tokenizer vocabulary");
+  if Hashtbl.length vocab < 1000 then failwith "Semantic_sqlite: tokenizer vocabulary too small";
   { vocab; max_piece_bytes = !max_piece_bytes }
 
 let normalize_nfkc text =
@@ -61,7 +61,7 @@ let normalize_nfkc text =
          | _ -> feed (`Uchar scalar));
         decode ()
     | `End -> feed `End
-    | `Malformed _ -> invalid_arg "Oonnxx: malformed UTF-8 input"
+    | `Malformed _ -> invalid_arg "Semantic_sqlite: malformed UTF-8 input"
     | `Await -> assert false
   in
   decode ();
@@ -115,12 +115,12 @@ let encode t text =
           previous.(stop) <- (start, 3)))
     )
   done;
-  if not (Float.is_finite scores.(size)) then failwith "Oonnxx: tokenization failed";
+  if not (Float.is_finite scores.(size)) then failwith "Semantic_sqlite: tokenization failed";
   let rec collect position ids =
     if position = 0 then Array.of_list ids
     else
       let start, id = previous.(position) in
-      if start < 0 then failwith "Oonnxx: tokenization path broken";
+      if start < 0 then failwith "Semantic_sqlite: tokenization path broken";
       collect start (id :: ids)
   in
   collect size []

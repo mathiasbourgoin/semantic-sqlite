@@ -1,5 +1,5 @@
 (lang dune 3.16)
-(name oonnxx)
-(version 0.2.0)
+(name semantic-sqlite)
+(version 0.3.0)
 (license MIT)
 (generate_opam_files false)

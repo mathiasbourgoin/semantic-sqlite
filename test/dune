@@ -1,23 +1,23 @@
 (test
- (name test_oonnxx)
- (libraries oonnxx unix))
+ (name test_semantic_sqlite)
+ (libraries semantic-sqlite unix))
 
 (test
  (name test_caqti)
- (libraries oonnxx oonnxx.caqti oonnxx.sqlite3 sqlite3 caqti caqti.classic caqti.blocking caqti-driver-sqlite3 uri unix)
+ (libraries semantic-sqlite semantic-sqlite.caqti semantic-sqlite.sqlite3 sqlite3 caqti caqti.classic caqti.blocking caqti-driver-sqlite3 uri unix)
  (deps ../sqlite3/vec1.so)
  (action
-  (setenv OONNXX_VEC1_EXTENSION %{dep:../sqlite3/vec1.so}
+  (setenv SEMANTIC_SQLITE_VEC1_EXTENSION %{dep:../sqlite3/vec1.so}
    (run %{test}))))
 
 (test
  (name test_eio)
- (libraries oonnxx oonnxx.eio eio_main))
+ (libraries semantic-sqlite semantic-sqlite.eio eio_main))
 
 (test
  (name test_sqlite3)
- (libraries oonnxx oonnxx.sqlite3 oonnxx.caqti sqlite3 unix)
+ (libraries semantic-sqlite semantic-sqlite.sqlite3 semantic-sqlite.caqti sqlite3 unix)
  (deps ../sqlite3/vec1.so)
  (action
-  (setenv OONNXX_VEC1_EXTENSION %{dep:../sqlite3/vec1.so}
+  (setenv SEMANTIC_SQLITE_VEC1_EXTENSION %{dep:../sqlite3/vec1.so}
    (run %{test}))))

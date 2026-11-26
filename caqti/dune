@@ -1,4 +1,4 @@
 (library
- (name oonnxx_caqti)
- (public_name oonnxx.caqti)
- (libraries oonnxx.sqlite3 caqti caqti.blocking caqti-driver-sqlite3))
+ (name semantic_sqlite_caqti)
+ (public_name semantic-sqlite.caqti)
+ (libraries semantic-sqlite.sqlite3 caqti caqti.blocking caqti-driver-sqlite3))

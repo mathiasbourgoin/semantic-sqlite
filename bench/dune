@@ -1,9 +1,9 @@
 (executable
  (name million_vectors)
  (modules million_vectors)
- (libraries oonnxx oonnxx.sqlite3 sqlite3 unix))
+ (libraries semantic-sqlite semantic-sqlite.sqlite3 sqlite3 unix))
 
 (executable
  (name exact_search)
  (modules exact_search)
- (libraries oonnxx oonnxx.sqlite3 sqlite3 unix))
+ (libraries semantic-sqlite semantic-sqlite.sqlite3 sqlite3 unix))

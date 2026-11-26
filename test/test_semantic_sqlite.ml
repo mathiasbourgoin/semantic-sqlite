@@ -9,7 +9,7 @@ let passages =
 (* Process CPU time (all threads) divided by wall time over a batch. *)
 let cores_used engine =
   let before = Unix.times () and started = Unix.gettimeofday () in
-  let vectors = List.map (Oonnxx.embed_passage engine) passages in
+  let vectors = List.map (Semantic_sqlite.embed_passage engine) passages in
   let after = Unix.times () and elapsed = Unix.gettimeofday () -. started in
   let cpu =
     after.Unix.tms_utime -. before.Unix.tms_utime
@@ -18,55 +18,55 @@ let cores_used engine =
 
 let check_thread_option ~model ~tokenizer =
   List.iter (fun threads ->
-    try ignore (Oonnxx.open_model_with ~threads ~model ~tokenizer ());
+    try ignore (Semantic_sqlite.open_model_with ~threads ~model ~tokenizer ());
       failwith (Printf.sprintf "threads:%d accepted" threads)
     with Invalid_argument _ -> ())
     [ 0; -1; 1025; 100_000; 0x8000_0000 ];
-  let single = Oonnxx.open_model_with ~threads:1 ~model ~tokenizer () in
+  let single = Semantic_sqlite.open_model_with ~threads:1 ~model ~tokenizer () in
   ignore (cores_used single);
   let single_cores, single_vectors = cores_used single in
   Printf.printf "cores used: threads:1 %.2f\n%!" single_cores;
   check (single_cores <= 1.5) "threads:1 uses at most about one core";
-  let wide = Oonnxx.open_model_with ~threads:200 ~model ~tokenizer () in
+  let wide = Semantic_sqlite.open_model_with ~threads:200 ~model ~tokenizer () in
   let text = List.hd passages in
-  check (Oonnxx.cosine (Oonnxx.embed_passage wide text) (List.hd single_vectors)
+  check (Semantic_sqlite.cosine (Semantic_sqlite.embed_passage wide text) (List.hd single_vectors)
          > 0.99999) "threads:200 embedding matches threads:1";
   if Domain.recommended_domain_count () < 4 then
     print_endline "skip: default-pool core comparison needs at least 4 cores"
   else (
-    let default = Oonnxx.open_model ~model ~tokenizer in
+    let default = Semantic_sqlite.open_model ~model ~tokenizer in
     ignore (cores_used default);
     let default_cores, default_vectors = cores_used default in
     Printf.printf "cores used: default %.2f\n%!" default_cores;
     check (default_cores > single_cores +. 0.5)
       "default thread pool uses more cores than threads:1";
     List.iter2 (fun a b ->
-      check (Oonnxx.cosine a b > 0.99999) "embedding depends on thread count")
+      check (Semantic_sqlite.cosine a b > 0.99999) "embedding depends on thread count")
       single_vectors default_vectors)
 
 let () =
   let a = [| 1.; 0. |] and b = [| 0.; 1. |] in
-  check (Oonnxx.cosine a a > 0.9999) "identity cosine";
-  check (abs_float (Oonnxx.cosine a b) < 0.0001) "orthogonal cosine";
-  let ranked = Oonnxx.rank ~query:a [ "b", b; "a", a ] in
+  check (Semantic_sqlite.cosine a a > 0.9999) "identity cosine";
+  check (abs_float (Semantic_sqlite.cosine a b) < 0.0001) "orthogonal cosine";
+  let ranked = Semantic_sqlite.rank ~query:a [ "b", b; "a", a ] in
   check (fst (List.hd ranked) = "a") "vector ranking";
-  let fused = Oonnxx.reciprocal_rank_fusion [ [ "a"; "b" ]; [ "b"; "c" ] ] in
+  let fused = Semantic_sqlite.reciprocal_rank_fusion [ [ "a"; "b" ]; [ "b"; "c" ] ] in
   check (fst (List.hd fused) = "b") "rank fusion";
-  let deduplicated = Oonnxx.reciprocal_rank_fusion [ [ "a"; "a" ]; [ "b" ] ] in
+  let deduplicated = Semantic_sqlite.reciprocal_rank_fusion [ [ "a"; "a" ]; [ "b" ] ] in
   check (fst (List.hd deduplicated) = "a") "duplicate rank ignored";
-  (try ignore (Oonnxx.cosine [| nan |] [| 1. |]); failwith "NaN accepted"
+  (try ignore (Semantic_sqlite.cosine [| nan |] [| 1. |]); failwith "NaN accepted"
    with Invalid_argument _ -> ());
-  let blob = Oonnxx.encode_f32le [| 1.; -0.5; 0. |] in
-  check (Oonnxx.decode_f32le blob = [| 1.; -0.5; 0. |]) "f32 blob round-trip";
-  match Sys.getenv_opt "OONNXX_TEST_MODEL", Sys.getenv_opt "OONNXX_TEST_TOKENIZER" with
+  let blob = Semantic_sqlite.encode_f32le [| 1.; -0.5; 0. |] in
+  check (Semantic_sqlite.decode_f32le blob = [| 1.; -0.5; 0. |]) "f32 blob round-trip";
+  match Sys.getenv_opt "SEMANTIC_SQLITE_TEST_MODEL", Sys.getenv_opt "SEMANTIC_SQLITE_TEST_TOKENIZER" with
   | Some model, Some tokenizer ->
-      let engine = Oonnxx.open_model ~model ~tokenizer in
-      let ids = Oonnxx.tokenize engine "query: chat noir" in
+      let engine = Semantic_sqlite.open_model ~model ~tokenizer in
+      let ids = Semantic_sqlite.tokenize engine "query: chat noir" in
       check (ids.(0) = 0 && ids.(Array.length ids - 1) = 2) "E5 special tokens";
       check (ids = [| 0; 41; 1294; 12; 3245; 86494; 2 |])
         "E5 French tokenization matches SentencePiece";
       List.iter (fun (text, expected) ->
-        let actual = Oonnxx.tokenize engine text in
+        let actual = Semantic_sqlite.tokenize engine text in
         if actual <> expected then
           failwith (Printf.sprintf "token mismatch for %S: got %s" text
             (String.concat "," (List.map string_of_int (Array.to_list actual)))))
@@ -79,19 +79,19 @@ let () =
           "query: 🚀 search", [| 0; 41; 1294; 12; 6; 247206; 33938; 2 |] ];
       List.iter (fun text ->
         check
-          (Oonnxx.tokenize engine text =
-           Oonnxx.tokenize engine "query: foo bar")
+          (Semantic_sqlite.tokenize engine text =
+           Semantic_sqlite.tokenize engine "query: foo bar")
           "E5 whitespace normalization")
         [ "query: foo\u{200b}bar"; "query: foo\u{2028}bar" ];
       check
-        (Oonnxx.tokenize engine "query: foo\007bar" =
-         Oonnxx.tokenize engine "query: foobar")
+        (Semantic_sqlite.tokenize engine "query: foo\007bar" =
+         Semantic_sqlite.tokenize engine "query: foobar")
         "E5 control normalization";
-      let query = Oonnxx.embed_query engine "black cat" in
-      let related = Oonnxx.embed_passage engine "un chat noir" in
-      let unrelated = Oonnxx.embed_passage engine "database schema migration" in
+      let query = Semantic_sqlite.embed_query engine "black cat" in
+      let related = Semantic_sqlite.embed_passage engine "un chat noir" in
+      let unrelated = Semantic_sqlite.embed_passage engine "database schema migration" in
       check (Array.length query = 384) "E5 embedding dimensions";
-      check (Oonnxx.cosine query related > Oonnxx.cosine query unrelated)
+      check (Semantic_sqlite.cosine query related > Semantic_sqlite.cosine query unrelated)
         "English-to-French semantic ranking";
       check_thread_option ~model ~tokenizer
   | _ -> ()

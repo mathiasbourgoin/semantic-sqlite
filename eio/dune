@@ -1,4 +1,4 @@
 (library
- (name oonnxx_eio)
- (public_name oonnxx.eio)
- (libraries oonnxx eio))
+ (name semantic_sqlite_eio)
+ (public_name semantic-sqlite.eio)
+ (libraries semantic-sqlite eio))

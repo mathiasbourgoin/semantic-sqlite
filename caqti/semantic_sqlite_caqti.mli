@@ -3,7 +3,7 @@
 type t
 
 val attach : model_id:string -> (module Caqti_blocking.CONNECTION) -> (t, string) result
-(** Create the Oonnxx tables and FTS5 index on an existing SQLite connection.
+(** Create the Semantic_sqlite tables and FTS5 index on an existing SQLite connection.
     [model_id] must identify the exact model and tokenizer versions; attaching
     with a different ID refuses to mix embeddings. The caller retains ownership
     of the connection. Loads the bundled SQLite Vec1 extension. *)

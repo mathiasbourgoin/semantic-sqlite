@@ -1,7 +1,7 @@
 (library
- (name oonnxx)
- (public_name oonnxx)
- (modules oonnxx tokenizer)
+ (name semantic_sqlite)
+ (public_name semantic-sqlite)
+ (modules semantic_sqlite tokenizer)
  (libraries yojson uutf uunf)
  (foreign_stubs
   (language c)

@@ -1,6 +1,6 @@
 # Million-vector SQLite benchmark
 
-Oonnxx 0.2.0's Vec1-backed IVF search was measured against its exact linear
+Oonnxx 0.2.0's Vec1-backed IVF search, now part of Semantic SQLite, was measured against its exact linear
 search on two reproducible synthetic corpora, each with 1,000,000 normalized
 vectors of 384 float32 components. The results show the recall and latency
 trade-off for these corpora; they do not predict performance on a different
@@ -34,16 +34,16 @@ Measurements were made on Linux x86-64 with an AMD Ryzen 9 7950X (16 cores,
 32 threads), SQLite 3.54.0, and Vec1 0.8. The benchmark used a scratch
 database on an external SSD, with SQLite journaling and synchronous writes
 disabled for data generation only. Its source is [`million_vectors.ml`](million_vectors.ml).
-Set `OONNXX_BENCH_DB` to a **new scratch path**, then run:
+Set `SEMANTIC_SQLITE_BENCH_DB` to a **new scratch path**, then run:
 
 ```sh
-OONNXX_VEC1_EXTENSION=_build/default/sqlite3/vec1.so \
-OONNXX_BENCH_DB=/path/to/scratch.sqlite \
-OONNXX_BENCH_N=1000000 OONNXX_BENCH_DIM=384 \
+SEMANTIC_SQLITE_VEC1_EXTENSION=_build/default/sqlite3/vec1.so \
+SEMANTIC_SQLITE_BENCH_DB=/path/to/scratch.sqlite \
+SEMANTIC_SQLITE_BENCH_N=1000000 SEMANTIC_SQLITE_BENCH_DIM=384 \
 dune exec bench/million_vectors.exe
 ```
 
-Set `OONNXX_BENCH_CORPUS=uniform` for the second corpus. To vary only the
+Set `SEMANTIC_SQLITE_BENCH_CORPUS=uniform` for the second corpus. To vary only the
 query probe fraction against an already built database, set
-`OONNXX_BENCH_REUSE=1` and `OONNXX_BENCH_NPROBE=0.5`. The generator's fixed
+`SEMANTIC_SQLITE_BENCH_REUSE=1` and `SEMANTIC_SQLITE_BENCH_NPROBE=0.5`. The generator's fixed
 seed recreates the same query vectors in reuse mode.

@@ -1,12 +1,12 @@
 opam-version: "2.0"
-synopsis: "Local multilingual ONNX embeddings and vector search for OCaml"
-description: "OCaml library for multilingual E5 embeddings using ONNX Runtime and SentencePiece, with cosine retrieval and rank fusion."
+synopsis: "Local semantic indexing in SQLite for OCaml"
+description: "OCaml library for persistent semantic indexes in SQLite, with multilingual E5 embeddings, FTS5 keyword search, exact and approximate vector search, and hybrid ranking."
 maintainer: "Mathias Bourgoin"
 authors: ["Mathias Bourgoin"]
 license: "MIT"
-homepage: "https://github.com/mathiasbourgoin/oonnxx"
-bug-reports: "https://github.com/mathiasbourgoin/oonnxx/issues"
-dev-repo: "git+https://github.com/mathiasbourgoin/oonnxx.git"
+homepage: "https://github.com/mathiasbourgoin/semantic-sqlite"
+bug-reports: "https://github.com/mathiasbourgoin/semantic-sqlite/issues"
+dev-repo: "git+https://github.com/mathiasbourgoin/semantic-sqlite.git"
 x-maintenance-intent: ["(latest)"]
 available: os = "linux"
 depends: [

@@ -16,17 +16,17 @@ typedef struct {
   void *library;
   OrtEnv *env;
   OrtSession *session;
-} oonnxx_session;
+} semantic_sqlite_session;
 
 static void session_finalize(value v) {
-  oonnxx_session *s = (oonnxx_session *)Data_custom_val(v);
+  semantic_sqlite_session *s = (semantic_sqlite_session *)Data_custom_val(v);
   if (s->session) s->api->ReleaseSession(s->session);
   if (s->env) s->api->ReleaseEnv(s->env);
   if (s->library) dlclose(s->library);
 }
 
 static struct custom_operations session_ops = {
-  "oonnxx.ort", session_finalize, custom_compare_default, custom_hash_default,
+  "semantic-sqlite.ort", session_finalize, custom_compare_default, custom_hash_default,
   custom_serialize_default, custom_deserialize_default, custom_compare_ext_default,
   custom_fixed_length_default
 };
@@ -42,31 +42,31 @@ static void raise_status(const OrtApi *api, OrtStatus *status) {
 }
 
 /* [threads] = 0 keeps ONNX Runtime's default thread pools. */
-CAMLprim value oonnxx_ort_open(value path, value threads) {
+CAMLprim value semantic_sqlite_ort_open(value path, value threads) {
   CAMLparam2(path, threads);
   CAMLlocal1(result);
   const char *library_path = getenv("ONNXRUNTIME_LIBRARY");
   if (!library_path || !*library_path) library_path = "libonnxruntime.so";
   void *library = dlopen(library_path, RTLD_NOW | RTLD_LOCAL);
-  if (!library) caml_failwith("Oonnxx: cannot load ONNX Runtime; set ONNXRUNTIME_LIBRARY");
+  if (!library) caml_failwith("Semantic_sqlite: cannot load ONNX Runtime; set ONNXRUNTIME_LIBRARY");
   const OrtApiBase *(*get_api_base)(void) = dlsym(library, "OrtGetApiBase");
   if (!get_api_base) {
     dlclose(library);
-    caml_failwith("Oonnxx: ONNX Runtime C API symbol missing");
+    caml_failwith("Semantic_sqlite: ONNX Runtime C API symbol missing");
   }
   const OrtApi *api = get_api_base()->GetApi(ORT_API_VERSION);
   if (!api) {
     dlclose(library);
-    caml_failwith("Oonnxx: incompatible ONNX Runtime C API");
+    caml_failwith("Semantic_sqlite: incompatible ONNX Runtime C API");
   }
-  result = caml_alloc_custom(&session_ops, sizeof(oonnxx_session), 0, 1);
-  oonnxx_session *s = (oonnxx_session *)Data_custom_val(result);
+  result = caml_alloc_custom(&session_ops, sizeof(semantic_sqlite_session), 0, 1);
+  semantic_sqlite_session *s = (semantic_sqlite_session *)Data_custom_val(result);
   s->api = api;
   s->library = library;
   s->env = NULL;
   s->session = NULL;
   OrtSessionOptions *options = NULL;
-  raise_status(api, api->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "oonnxx", &s->env));
+  raise_status(api, api->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "semantic-sqlite", &s->env));
   raise_status(api, api->CreateSessionOptions(&options));
   int thread_count = Int_val(threads);
   OrtStatus *status = NULL;
@@ -78,13 +78,13 @@ CAMLprim value oonnxx_ort_open(value path, value threads) {
   CAMLreturn(result);
 }
 
-CAMLprim value oonnxx_ort_run(value handle, value ids) {
+CAMLprim value semantic_sqlite_ort_run(value handle, value ids) {
   CAMLparam2(handle, ids);
   CAMLlocal3(result, row, scalar);
-  oonnxx_session *s = (oonnxx_session *)Data_custom_val(handle);
+  semantic_sqlite_session *s = (semantic_sqlite_session *)Data_custom_val(handle);
   const OrtApi *api = s->api;
   mlsize_t count = Wosize_val(ids);
-  if (count == 0 || count > 512) caml_invalid_argument("Oonnxx: token count must be 1..512");
+  if (count == 0 || count > 512) caml_invalid_argument("Semantic_sqlite: token count must be 1..512");
   int64_t *input_ids = malloc(count * sizeof(int64_t));
   int64_t *mask = malloc(count * sizeof(int64_t));
   int64_t *types = calloc(count, sizeof(int64_t));
@@ -125,7 +125,7 @@ CAMLprim value oonnxx_ort_run(value handle, value ids) {
   if (status) { api->ReleaseTensorTypeAndShapeInfo(info); goto cleanup_error; }
   if (dims_count != 3) {
     api->ReleaseTensorTypeAndShapeInfo(info);
-    status = api->CreateStatus(ORT_INVALID_ARGUMENT, "Oonnxx: expected rank-3 model output");
+    status = api->CreateStatus(ORT_INVALID_ARGUMENT, "Semantic_sqlite: expected rank-3 model output");
     goto cleanup_error;
   }
   ONNXTensorElementDataType element_type;
@@ -133,7 +133,7 @@ CAMLprim value oonnxx_ort_run(value handle, value ids) {
   if (status) { api->ReleaseTensorTypeAndShapeInfo(info); goto cleanup_error; }
   if (element_type != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
     api->ReleaseTensorTypeAndShapeInfo(info);
-    status = api->CreateStatus(ORT_INVALID_ARGUMENT, "Oonnxx: expected float32 model output");
+    status = api->CreateStatus(ORT_INVALID_ARGUMENT, "Semantic_sqlite: expected float32 model output");
     goto cleanup_error;
   }
   int64_t dims[3];
@@ -141,7 +141,7 @@ CAMLprim value oonnxx_ort_run(value handle, value ids) {
   api->ReleaseTensorTypeAndShapeInfo(info);
   if (status) goto cleanup_error;
   if (dims[0] != 1 || dims[1] != (int64_t)count || dims[2] <= 0 || dims[2] > 16384) {
-    status = api->CreateStatus(ORT_INVALID_ARGUMENT, "Oonnxx: unexpected model output dimensions");
+    status = api->CreateStatus(ORT_INVALID_ARGUMENT, "Semantic_sqlite: unexpected model output dimensions");
     goto cleanup_error;
   }
   float *data = NULL;
@@ -170,5 +170,5 @@ cleanup_error:
   if (memory) api->ReleaseMemoryInfo(memory);
   free(input_ids); free(mask); free(types);
   raise_status(api, status);
-  caml_failwith("Oonnxx: unknown ONNX Runtime error");
+  caml_failwith("Semantic_sqlite: unknown ONNX Runtime error");
 }
